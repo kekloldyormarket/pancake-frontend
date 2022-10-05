@@ -24,6 +24,15 @@ import { SentryErrorBoundary } from '../components/ErrorBoundary'
 import Menu from '../components/Menu'
 import Providers from '../Providers'
 import GlobalStyle from '../style/Global'
+import React, { FC, useMemo } from 'react'
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
+import { PhantomWalletAdapter, UnsafeBurnerWalletAdapter } from '@solana/wallet-adapter-wallets'
+import { WalletModalProvider, WalletDisconnectButton, WalletMultiButton } from '@solana/wallet-adapter-react-ui'
+import { clusterApiUrl } from '@solana/web3.js'
+
+// Default styles that can be overridden by your app
+require('@solana/wallet-adapter-react-ui/styles.css')
 
 const EasterEgg = dynamic(() => import('components/EasterEgg'), { ssr: false })
 
@@ -54,12 +63,33 @@ function MPGlobalHooks() {
   return null
 }
 
-function MyApp(props: AppProps<{ initialReduxState: any }>) {
+export const MyApp: FC = (props: AppProps<{ initialReduxState: any }>) => {
+  // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
+  const network = WalletAdapterNetwork.Devnet
+
+  // You can also provide a custom RPC endpoint.
+  const endpoint = useMemo(() => clusterApiUrl(network), [network])
+
+  const wallets = useMemo(
+    () => [
+      /**
+       * Select the wallets you wish to support, by instantiating wallet adapters here.
+       *
+       * Common adapters can be found in the npm package `@solana/wallet-adapter-wallets`.
+       * That package supports tree shaking and lazy loading -- only the wallets you import
+       * will be compiled into your application, and only the dependencies of wallets that
+       * your users connect to will be loaded.
+       */
+      new PhantomWalletAdapter(),
+      new UnsafeBurnerWalletAdapter(),
+    ],
+    [],
+  )
   const { pageProps, Component } = props
   const store = useStore(pageProps.initialReduxState)
 
   return (
-    <>
+    <div>
       <Head>
         <meta
           name="viewport"
@@ -82,33 +112,44 @@ function MyApp(props: AppProps<{ initialReduxState: any }>) {
           // eslint-disable-next-line @next/next/no-sync-scripts
           <script src="https://public.bnbstatic.com/static/js/mp-webview-sdk/webview-v1.0.0.min.js" id="mp-webview" />
         )}
-      </Head>
-      <Providers store={store}>
-        <Blocklist>
-          {(Component as NextPageWithLayout).mp ? <MPGlobalHooks /> : <GlobalHooks />}
-          <ResetCSS />
-          <GlobalStyle />
-          <GlobalCheckClaimStatus excludeLocations={[]} />
-          <PersistGate loading={null} persistor={persistor}>
-            <Updaters />
-            <App {...props} />
-          </PersistGate>
-        </Blocklist>
-      </Providers>
-      <Script
-        strategy="afterInteractive"
-        id="google-tag"
-        dangerouslySetInnerHTML={{
-          __html: `
+      </Head>{' '}
+      <br /> <br /> <br /> <br />
+      <ConnectionProvider endpoint={endpoint}>
+        <WalletProvider wallets={wallets} autoConnect>
+          <WalletModalProvider>
+            <WalletMultiButton />
+            <WalletDisconnectButton />
+            <>
+              <Providers store={store}>
+                <Blocklist>
+                  {(Component as NextPageWithLayout).mp ? <MPGlobalHooks /> : <GlobalHooks />}
+                  <ResetCSS />
+                  <GlobalStyle />
+                  <GlobalCheckClaimStatus excludeLocations={[]} />
+                  <PersistGate loading={null} persistor={persistor}>
+                    <Updaters />
+                    <App {...props} />
+                  </PersistGate>
+                </Blocklist>
+              </Providers>
+              <Script
+                strategy="afterInteractive"
+                id="google-tag"
+                dangerouslySetInnerHTML={{
+                  __html: `
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
             j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
             })(window,document,'script','dataLayer', '${process.env.NEXT_PUBLIC_GTAG}');
           `,
-        }}
-      />
-    </>
+                }}
+              />
+            </>
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+    </div>
   )
 }
 
